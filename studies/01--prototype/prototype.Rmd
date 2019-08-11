@@ -42,6 +42,7 @@ knitr::opts_chunk$set(cache.lazy=FALSE)
 * Can we predict crime type using location and time information?
 * etc
 
+
 ```{r libs, cache=FALSE, echo=FALSE}
 suppressPackageStartupMessages(library(tidyverse))
 suppressPackageStartupMessages(library(glue))
@@ -55,9 +56,6 @@ suppressPackageStartupMessages(library(tictoc))
 tic("Knitting the document")
 ```
 
-# Data Science Questions
-
-Can you predict a crime type based on the feature?
 
 # Data {#data}
 
@@ -100,12 +98,7 @@ df_top10_samples %>%
              )) +
   geom_point() +
   geom_line() -> p
-
-
-ggplotly(p)
-
-# Y axis:
-# X-axis Hours
+p
 ```
 
 
