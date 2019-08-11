@@ -1,0 +1,82 @@
+
+
+```{r data-preprocessing, eval=FALSE}
+df <- read_csv(here("Crimes_-_2001_to_present.csv"))
+
+# preprocessing
+df <- df %>%
+  mutate(date=lubridate::mdy_hms(Date)) %>%
+  # columns to remove
+  select(-Date, -"Case Number",
+         -IUCR, -Description,
+         -`FBI Code`,
+         -Location,
+         -`Updated On`,
+         -`Historical Wards 2003-2015`,
+         -`Community Areas`
+         ) %>%
+  # columns to use
+  select(ID, Year, date, everything()) %>%
+  # rename
+  rename(id=ID, block=Block, primary_type=`Primary Type`) %>%
+  rename(location_description=`Location Description`,
+         arrest=Arrest,
+         domestic=Domestic,
+         beat=Beat,
+         district=District,
+         ward=Ward,
+         x_coord=`X Coordinate`,
+         y_coord=`Y Coordinate`,
+         lat=Latitude,
+         long=Longitude,
+         year=Year,
+         community_area=`Community Area`,
+         zipcode=`Zip Codes`) %>%
+  select(1:zipcode)
+```
+
+```{r}
+df <- read_rds("data_processed.csv")
+```
+
+# Exploratory Data Analysis
+
+## Most common crime
+
+```{r}
+df_crime_types <- df %>%
+  count(primary_type) %>%
+  arrange(desc(n)) %>%
+  mutate(`percent_crime` = scales::percent(n/sum(n)))
+
+knitr::kable(df_crime_types)
+```
+
+## What is the span of the data?
+
+```{r}
+df_crime_types_top10 <- df_crime_types %>%
+  head(10)
+df_top10 <- df %>%
+  semi_join(df_crime_types_top10, by="primary_type")
+```
+
+```{r}
+df_top10 %>%
+  sample_n(1000) %>%
+  ggplot(aes(x=x_coord, y=y_coord, color=primary_type)) +
+  geom_point()
+```
+
+
+
+# Data Reduction Via Sampling
+
+```{r}
+set.seed(628)
+df_top10_samples <- df_top10 %>%
+  group_by(primary_type) %>%
+  sample_n(20000) %>%
+  ungroup()
+write_rds(df_top10_samples, here("df_top10_samples.csv"))
+```
