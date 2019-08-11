@@ -37,9 +37,9 @@ knitr::opts_chunk$set(cache.lazy=FALSE)
 
 # Questions to ask
 
-* What is the crime rate?
-* The most common name in Chicago?
-* What is the most useful predictor to predict the type of crime?
+* What is the crime rate in chicago?
+* What are the most useful predictors to predict the type of crime?
+* Can we predict crime type using location and time information?
 * etc
 
 ```{r libs, cache=FALSE, echo=FALSE}
