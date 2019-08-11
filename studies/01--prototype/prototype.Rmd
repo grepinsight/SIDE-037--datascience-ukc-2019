@@ -162,6 +162,7 @@ baked_test_data  <- bake(model_prepped, new_data = test_data)
 model_ctrl <- fit_control(verbosity=2L)
 
 model_fit <- boost_tree(trees = 5) %>%
+              # can increase the number of trees to fit better...
                set_mode("classification") %>%
                set_engine("xgboost",
                           silent=0,
