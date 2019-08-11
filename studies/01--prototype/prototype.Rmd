@@ -2,7 +2,9 @@
 title: "2019 UKC Prototype Study"
 author: "Albert Lee"
 date: "`r Sys.Date()`"
+always_allow_html: yes
 output:
+  pdf_document:
   rmdformats::readthedown:
     code_folding: show
     lightbox: true
