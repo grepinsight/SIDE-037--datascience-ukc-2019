@@ -23,8 +23,8 @@ params:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(fig.align='center')
-knitr::opts_chunk$set(cache=TRUE)
-knitr::opts_chunk$set(cache.lazy=FALSE)
+knitr::opts_chunk$set(cache=FALSE)
+#knitr::opts_chunk$set(cache.lazy=FALSE)
 ```
 
 # Introduction
@@ -67,6 +67,16 @@ tic("Knitting the document")
 So will use the reduced version of it. See
 ```{r}
 df_top10_samples <- read_rds(here::here("df_top10_samples.csv"))
+df_top10_samples <- df_top10_samples %>%
+  group_by(primary_type) %>%
+  sample_n(1000) %>%
+  ungroup()
+
+df_top10_samples <- df_top10_samples %>%
+  filter(primary_type %in% c("ASSAULT", "NARCOTICS"))
+
+df_top10_samples %>%
+count(primary_type)
 ```
 
 ```{r}
@@ -108,12 +118,16 @@ p
 
 ## Feature engineering / Split
 
+* long/lat and x_coord and y_coord contain the same information; will nust use the latter
+
 ```{r}
 set.seed(628)
 
 data_in <- df_top10_samples %>%
   mutate(hour=lubridate::hour(date)) %>%
-  select(primary_type, x_coord, y_coord, hour)
+  select(primary_type, x_coord, y_coord, hour, community_area, arrest) %>%
+  mutate(arrest=as.factor(arrest)) %>%
+  mutate(community_area =as.factor(community_area))
 
 # Training/Testing Split --------------------
 data_split <- initial_split(data_in, strata = "primary_type", p = 0.75)
@@ -123,9 +137,15 @@ test_data  <- testing(data_split)
 
 model_rec <- recipe(primary_type ~ ., data = train_data) %>%
                 step_center(x_coord,y_coord) %>%
-                step_scale(x_coord,y_coord)
+                step_scale(x_coord,y_coord) %>%
+                step_medianimpute(all_numeric()) %>%
+                step_knnimpute(all_nominal()) %>%
+                step_dummy(community_area, arrest)
 
-summary(model_rec, original = TRUE)
+summary(model_rec, original = FALSE)
+```
+```{r}
+colnames(df_top10_samples)
 ```
 
 ## Preprocessing before machine learning
@@ -152,32 +172,35 @@ baked_test_data  <- bake(model_prepped, new_data = test_data)
 
 ```{r fitting}
 
-model_ctrl <- fit_control(verbosity=2L)
-
-model_fit <- boost_tree(trees = 5) %>%
+model_knn <- nearest_neighbor(neighbors = 10) %>%
+               set_engine("kknn")
+model_rf <- rand_forest(trees = 1000) %>%
               # can increase the number of trees to fit better...
+               set_engine("randomForest",
+                          verbose = 2 # verbose = 1 means print evaluation metric
+                          )
+model_fit <- model_rf %>%
                set_mode("classification") %>%
-               set_engine("xgboost",
-                          silent=0,
-                          verbose = 1L # verbose = 1 means print evaluation metric
-                          ) %>%
                fit(formula(model_prepped),
-                   data = baked_train_data,
-                   control=model_ctrl)
-
-write_rds(model_fit, "basic_model.rds")
+                   data = baked_train_data)
+print("done")
 ```
 
 # Model Performance
 
-```{r model_performance}
+```{r model_performance, dependson=c(-1)}
 df_pred <- predict(model_fit, new_data=baked_test_data, type=c("prob")) %>%
   mutate(actual=baked_test_data$primary_type) %>%
   select(actual, everything())
 
 # Cross entropy
-df_metrics_crossentropy <- df_pred %>%
-    mn_log_loss(actual, 2:ncol(.))
+if(length(unique(baked_test_data$primary_type)) > 2) {
+  df_metrics_crossentropy <- df_pred %>%
+      mn_log_loss(actual, 2:ncol(.))
+} else{
+  df_metrics_crossentropy <- df_pred %>%
+      mn_log_loss(actual, 2)
+}
 
 # Accuracy and Kappa
 df_pred_class <- predict(model_fit, new_data=baked_test_data, type=c("class")) %>%
@@ -186,6 +209,24 @@ df_pred_class <- predict(model_fit, new_data=baked_test_data, type=c("class")) %
 df_metrics_classes <- metrics(df_pred_class, truth = actual, estimate=.pred_class)
 
 bind_rows(df_metrics_classes, df_metrics_crossentropy)
+```
+
+```{r}
+df_top10_samples %>%
+  ggplot(aes(x=x_coord, y=y_coord, color=arrest)) +
+  geom_point()
+```
+```{r}
+df_top10_samples %>%
+  select(arrest, primary_type) %>%
+  table()
+```
+
+```{r}
+if(model_fit$spec$method$libs == "randomForest") {
+  randomForest::importance(model_fit$fit)
+  plot(randomForest::importance(model_fit$fit))
+}
 ```
 
 # Conclusion
@@ -220,4 +261,18 @@ sessionInfo()
 ```{r time_to_knit, echo=FALSE, cache=FALSE}
 toc()
 ```
+
+# Test
+
+
+```{r}
+df_top10_samples  %>%
+  ggplot(aes(x=x_coord, y=long)) +
+  geom_point()
+
+df_top10_samples  %>%
+  ggplot(aes(x=y_coord, y=lat)) +
+  geom_point()
+```
+
 
